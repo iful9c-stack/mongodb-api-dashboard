@@ -72,6 +72,29 @@ module.exports = async function handler(req, res) {
         result = await coll.insertMany(documents);
         return res.status(200).json({ insertedIds: result.insertedIds });
 
+      case 'bulkWrite':
+        const bulkOps = (documents || []).map(op => {
+          const f = op.filter || {};
+          const u = op.update || {};
+          if (f.customer_number !== undefined) {
+            const val = String(f.customer_number).trim();
+            return {
+              updateOne: {
+                filter: { $expr: { $eq: [{ $toString: "$customer_number" }, val] } },
+                update: { $set: { ...u, customer_number: val } },
+                upsert: true
+              }
+            };
+          }
+          return { updateOne: { filter: f, update: { $set: u }, upsert: true } };
+        });
+        result = await coll.bulkWrite(bulkOps, { ordered: false });
+        return res.status(200).json({
+          matchedCount: result.matchedCount,
+          modifiedCount: result.modifiedCount,
+          upsertedCount: result.upsertedCount || 0
+        });
+
       case 'replaceOne':
         if (filter.customer_number !== undefined) {
           const cnVal = String(filter.customer_number).trim();
