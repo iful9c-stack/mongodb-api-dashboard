@@ -60,6 +60,10 @@ module.exports = async function handler(req, res) {
         result = await coll.aggregate(filter).toArray();
         return res.status(200).json({ documents: result });
 
+      case 'deleteMany':
+        result = await coll.deleteMany(filter);
+        return res.status(200).json({ deletedCount: result.deletedCount });
+
       case 'insertOne':
         result = await coll.insertOne(document);
         return res.status(200).json({ insertedId: result.insertedId });
