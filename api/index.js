@@ -33,11 +33,31 @@ module.exports = async function handler(req, res) {
 
     switch (action) {
       case 'findOne':
-        result = await coll.findOne(filter, { projection });
+        if (filter.customer_number !== undefined) {
+          const val = String(filter.customer_number).trim();
+          result = await coll.findOne({ $expr: { $eq: [{ $toString: "$customer_number" }, val] } }, { projection });
+          if (!result) {
+            result = await coll.findOne({ customer_number: val }, { projection });
+          }
+          if (!result) {
+            const numVal = Number(val);
+            if (!isNaN(numVal)) result = await coll.findOne({ customer_number: numVal }, { projection });
+          }
+        } else {
+          result = await coll.findOne(filter, { projection });
+        }
         return res.status(200).json({ document: result || null });
 
       case 'find':
         result = await coll.find(filter).project(projection).sort(sort).limit(limit).toArray();
+        return res.status(200).json({ documents: result });
+
+      case 'updateMany':
+        result = await coll.updateMany(filter, document);
+        return res.status(200).json({ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount });
+
+      case 'aggregate':
+        result = await coll.aggregate(filter).toArray();
         return res.status(200).json({ documents: result });
 
       case 'insertOne':
@@ -49,7 +69,25 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ insertedIds: result.insertedIds });
 
       case 'replaceOne':
-        result = await coll.replaceOne(filter, replacement, { upsert: true });
+        if (filter.customer_number !== undefined) {
+          const cnVal = String(filter.customer_number).trim();
+          let existing = await coll.findOne({ $expr: { $eq: [{ $toString: "$customer_number" }, cnVal] } });
+          if (!existing) existing = await coll.findOne({ customer_number: cnVal });
+          if (!existing) {
+            const cnNum = Number(cnVal);
+            if (!isNaN(cnNum)) existing = await coll.findOne({ customer_number: cnNum });
+          }
+          if (existing) {
+            const { _id, ...rest } = replacement;
+            result = await coll.replaceOne({ _id: existing._id }, { ...rest, customer_number: cnVal });
+            return res.status(200).json({ matchedCount: 1, modifiedCount: result.modifiedCount, upsertedCount: 0 });
+          } else {
+            await coll.insertOne({ ...replacement, customer_number: cnVal });
+            return res.status(200).json({ matchedCount: 0, modifiedCount: 0, upsertedCount: 1 });
+          }
+        } else {
+          result = await coll.replaceOne(filter, replacement, { upsert: true });
+        }
         return res.status(200).json({
           matchedCount: result.matchedCount,
           modifiedCount: result.modifiedCount,
