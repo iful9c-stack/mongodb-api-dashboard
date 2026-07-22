@@ -1,50 +1,49 @@
-import { MongoClient } from "mongodb";
-
-
-let client;
-
-
-async function connectDB(){
-
-    if(!client){
-
-        client = new MongoClient(
-            process.env.MONGODB_URI
-        );
-
-        await client.connect();
-    }
-
-    return client;
-
-}
-
+import { getDatabase } from "./lib/mongodb.js";
 
 
 export default async function handler(req,res){
 
     try {
 
-
-        const client =
-            await connectDB();
-
-
         const db =
-            client.db("dashboard_fo");
+            await getDatabase();
+
+
+        const page =
+            Number(req.query.page || 1);
+
+
+        const limit =
+            Number(req.query.limit || 100);
+
+
+        const skip =
+            (page-1) * limit;
+
+
+        const collection =
+            db.collection("list_mitra");
+
+
+        const total =
+            await collection.countDocuments();
 
 
         const data =
-            await db
-            .collection("list_mitra")
+            await collection
             .find({})
-            .limit(1000)
+            .skip(skip)
+            .limit(limit)
             .toArray();
 
 
         res.status(200).json({
-            total:data.length,
+
+            page,
+            limit,
+            total,
             data
+
         });
 
 
